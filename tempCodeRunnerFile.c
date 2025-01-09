@@ -16,6 +16,12 @@ typedef struct Graph
     Node **adjLists;
 } Graph;
 
+Node *createNode(int vertex, int weight);
+Graph *createGraph(int vertices);
+void addEdge(Graph *graph, int src, int dest, int weight);
+void dijkstra(Graph *graph, int src);
+void freeGraph(Graph *graph);
+
 Node *createNode(int vertex, int weight)
 {
     Node *newNode = (Node *)malloc(sizeof(Node));
@@ -87,7 +93,7 @@ void dijkstra(Graph *graph, int src)
     {
         int u = -1;
 
-        // Select the unvisited vertex with the smallest distance
+        // Select the unvisited vertex with the smallest distance (Serial)
         for (int i = 0; i < numVertices; i++)
         {
             if (!visited[i] && (u == -1 || dist[i] < dist[u]))
@@ -98,36 +104,34 @@ void dijkstra(Graph *graph, int src)
 
         if (u == -1)
             break;
-
         visited[u] = 1;
 
         Node *temp = graph->adjLists[u];
 
-        // Relax edges of the selected vertex
-        while (temp != NULL)
+// Relax edges in parallel
+#pragma omp parallel
         {
-            int v = temp->vertex;
-            int weight = temp->weight;
-
-            if (!visited[v] && dist[u] != INT_MAX && dist[u] + weight < dist[v])
+            while (temp != NULL)
             {
-                dist[v] = dist[u] + weight;
+                int v = temp->vertex;
+                int weight = temp->weight;
+
+#pragma omp critical
+                {
+                    if (!visited[v] && dist[u] != INT_MAX && dist[u] + weight < dist[v])
+                    {
+                        dist[v] = dist[u] + weight;
+                    }
+                }
+                temp = temp->next;
             }
-            temp = temp->next;
         }
     }
 
     printf("Vertex\tDistance from Source\n");
     for (int i = 0; i < numVertices; i++)
     {
-        if (dist[i] == INT_MAX)
-        {
-            printf("%d\tINF\n", i + 1); // Convert back to 1-based indexing for output
-        }
-        else
-        {
-            printf("%d\t%d\n", i + 1, dist[i]);
-        }
+        printf("%d\t%d\n", i, dist[i]);
     }
 
     free(dist);
@@ -166,13 +170,13 @@ int main()
     {
         int src, dest, weight;
         scanf("%d %d %d", &src, &dest, &weight);
-        addEdge(graph, src - 1, dest - 1, weight); // Adjust for 1-based indexing
+        addEdge(graph, src, dest, weight);
     }
 
     printf("Enter the source vertex: ");
     scanf("%d", &src);
 
-    if (src < 1 || src > vertices)
+    if (src < 0 || src >= vertices)
     {
         printf("Invalid source vertex!\n");
         freeGraph(graph);
@@ -180,7 +184,7 @@ int main()
     }
 
     printf("Dijkstra's Algorithm:\n");
-    dijkstra(graph, src - 1); // Adjust for 1-based indexing
+    dijkstra(graph, src);
 
     freeGraph(graph);
     return 0;
